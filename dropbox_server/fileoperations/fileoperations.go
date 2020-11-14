@@ -54,9 +54,7 @@ func WriteSliceToFile(filepath string, filename string, lines []string) {
 func CreateDir(path string, dirName string) {
 	err := os.Mkdir(path+"/"+dirName, 0755)
 	if err != nil {
-		fmt.Println(err)
-		//log
-		return
+		panic(err)
 	}
 }
 func Remove(dirPath string, filename string) {

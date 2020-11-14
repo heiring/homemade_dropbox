@@ -10,7 +10,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-const BUFFERSIZE = 1024
+const (
+	BUFFERSIZE = 1024
+	FILE_PORT  = "27001"
+	EVENT_PORT = "27002"
+)
 
 func fillString(retunString string, toLength int) string {
 	for {
@@ -88,23 +92,20 @@ func TransmitFile(filepath string, filename string) {
 	}
 }
 
-func TransmitEvent(event fsnotify.Event, isDir bool) {
-	server, err := net.Listen("tcp", "localhost:27001")
+func TransmitEvent(eventName string, op fsnotify.Op, isNewDir bool) {
+	connection, err := net.Dial("tcp", "localhost:"+EVENT_PORT)
 	if err != nil {
-		fmt.Println("Error listetning: ", err)
-		os.Exit(1)
+		panic(err)
 	}
-	defer server.Close()
-	fmt.Println("Server started! Waiting for connections...")
-	transmissionComplete := false
-	for !transmissionComplete {
-		connection, err := server.Accept()
-		if err != nil {
-			fmt.Println("Error: ", err)
-			os.Exit(1)
-		}
-		fmt.Println("Client connected")
-		sendEventToServer(connection, event, isDir)
-		transmissionComplete = true
-	}
+	defer connection.Close()
+
+	//connection.Write([]byte(eventName))
+
+	sOp := strconv.FormatUint(uint64(op), 16)
+	//fmt.Println("transmit op: " + sOp)
+	//connection.Write([]byte(sOp))
+
+	sIsNewDir := strconv.FormatBool(isNewDir)
+	//fmt.Println("transmit isnewdie: " + sIsNewDir)
+	connection.Write([]byte(eventName + "/" + sOp + "/" + sIsNewDir))
 }

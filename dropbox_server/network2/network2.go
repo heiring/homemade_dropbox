@@ -94,3 +94,8 @@ func EstablishFileConnection(connectionEstablished chan<- net.Conn) {
 		}
 	}
 }
+
+func ExtractRemotePort(conn net.Conn) string {
+	slc := strings.SplitAfter(conn.RemoteAddr().String(), ":")
+	return slc[len(slc)-1]
+}

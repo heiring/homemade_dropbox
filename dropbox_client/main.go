@@ -12,10 +12,9 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
-type fileSystemChange struct {
-	Event     fsnotify.Event
-	FileLines []string
-	IsDir     bool
+type dirEvent struct {
+	Event    fsnotify.Event
+	IsNewDir bool
 }
 
 type fileInfo struct {
@@ -26,29 +25,32 @@ type fileInfo struct {
 var watcher *fsnotify.Watcher
 
 func fileTransmission(fileTransmissionQueue <-chan fileInfo) {
-	ticker := time.NewTicker(5000 * time.Millisecond)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	for {
-		select {
-		case <-ticker.C:
-			select {
-			case file := <-fileTransmissionQueue:
-				fmt.Println("|||||||||||||||||||||||TRANSMITTING FILE||||||||||||||||||")
-				network2.TransmitFile(file.filePath, file.fileName)
-			}
-		}
+		<-ticker.C
+		file := <-fileTransmissionQueue
+		network2.TransmitFile(file.filePath, file.fileName)
 	}
+}
 
+func eventTransmission(dirEventTransmissionQueue <-chan dirEvent) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	for {
+		<-ticker.C
+		dirEvent := <-dirEventTransmissionQueue
+		network2.TransmitEvent(dirEvent.Event.Name, dirEvent.Event.Op, dirEvent.IsNewDir)
+	}
 }
 
 func main() {
 	//arg := os.Args[1]
 	dirPath := "/tmp/dropbox/client"
 
-	//send := make(chan fileSystemChange)
-	//go bcast.Transmitter(32000, send)
-
 	fileTransmissionQueue := make(chan fileInfo, 10)
-	go fileTransmission(fileTransmissionQueue) //fileTransmission)
+	go fileTransmission(fileTransmissionQueue)
+
+	dirEventTransmissionQueue := make(chan dirEvent, 10)
+	go eventTransmission(dirEventTransmissionQueue)
 
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
@@ -66,24 +68,20 @@ func main() {
 				fmt.Printf("client: EVENT! %#v\n", event)
 				fileName := fileoperations.ExtractFileName(event.Name)
 
-				//transmitEvent := fsnotify.Event{Name: fileoperations.ExtractChangeName(event.Name, dirPath), Op: event.Op}
-				fmt.Println(" ")
 				switch event.Op {
 
 				case fsnotify.Create:
-					//fmt.Println("case: create")
+
 					fInfo, err := os.Stat(event.Name)
 					if err != nil {
-						fmt.Println("ERROR finfo")
 						log.Fatal(err)
 					}
-					//isDir := false
+
 					if fInfo.IsDir() {
 						watcher.Add(event.Name)
-						//isDir = true
+						dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: true}
 					} else {
-						//isDir = false
-						//network2.TransmitFile(dirPath, fileName)
+
 						fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: dirPath}
 					}
 
@@ -97,9 +95,10 @@ func main() {
 					// fileLines := fileoperations.ReadFileLines(dirPath, filename)
 					// send <- fileSystemChange{Event: transmitEvent, FileLines: fileLines, IsDir: false}
 					//network2.TransmitFile(dirPath, fileName)
+					fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: dirPath}
 
 				case fsnotify.Remove:
-					//send <- fileSystemChange{Event: transmitEvent, FileLines: nil, IsDir: false}
+					dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: false}
 				}
 
 			case err := <-watcher.Errors:
