@@ -1,9 +1,7 @@
 package fileoperations
 
 import (
-	"bufio"
 	"fmt"
-	"log"
 	"os"
 )
 
@@ -22,33 +20,6 @@ func CreateFile(filename string) {
 		return
 	}
 
-	fmt.Println("CreateFile: File created successfully", filename)
-}
-
-func WriteSliceToFile(filepath string, filename string, lines []string) {
-
-	file, err := os.OpenFile(filepath+"/"+filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-
-	if err != nil {
-		log.Fatalf("failed creating file: %s", err)
-	}
-
-	err = file.Truncate(0)
-	if err != nil {
-		log.Fatalf("failed truncating file: %s", err)
-	}
-
-	datawriter := bufio.NewWriter(file)
-	fmt.Print("lines to write: ")
-	fmt.Println(lines)
-
-	for _, data := range lines {
-		_, _ = datawriter.WriteString(data + "\n")
-
-	}
-
-	datawriter.Flush()
-	file.Close()
 }
 
 func CreateDir(path string, dirName string) {
@@ -61,8 +32,6 @@ func Remove(dirPath string, filename string) {
 
 	err := os.Remove(dirPath + "/" + filename)
 	if err != nil {
-		//log.Fatal(e)
-		fmt.Println("remove error")
-		fmt.Println(err)
+		return
 	}
 }

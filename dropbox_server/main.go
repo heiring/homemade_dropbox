@@ -8,35 +8,24 @@ import (
 
 	"./fileoperations"
 	"./network2"
-	"github.com/fsnotify/fsnotify"
 )
-
-type fileSystemChange struct {
-	Event     fsnotify.Event
-	FileLines []string
-	IsDir     bool
-}
 
 const (
 	FILE_PORT  = "27001"
 	EVENT_PORT = "27002"
+	REMOVE     = 4
 )
 
-func receiveFile(connectionEstablished <-chan net.Conn, dirPath string) {
+func receiveFile(connectionEstablished <-chan net.Conn, serverRoot string) {
 	for {
-		// select {
-		// case connection := <-connectionEstablished:
-		// 	//fmt.Println("conn est")
-		// 	network2.CreateFileFromSocket(connection, dirPath)
-		// }
 		connection := <-connectionEstablished
 		if network2.ExtractRemotePort(connection) == FILE_PORT {
-			network2.CreateFileFromSocket(connection, dirPath)
+			network2.CreateFileFromSocket(connection, serverRoot)
 		}
 	}
 }
 
-func receiveEvent(dirPath string) {
+func receiveEvent(serverRoot string) {
 	server, err := net.Listen("tcp", "localhost:"+EVENT_PORT)
 	if err != nil {
 		panic(err)
@@ -54,11 +43,11 @@ func receiveEvent(dirPath string) {
 
 		connection.Read(buffer)
 		event := string(buffer)
-		eventSplit := strings.SplitAfter(event, "/")
+		eventSplit := strings.SplitAfter(event, "-")
 
-		eventName := strings.TrimSuffix(eventSplit[0], "/")
+		eventName := strings.TrimSuffix(eventSplit[0], "-")
 
-		sOp := strings.TrimSuffix(eventSplit[1], "/")
+		sOp := strings.TrimSuffix(eventSplit[1], "-")
 		op, err := strconv.Atoi(sOp)
 		if err != nil {
 			panic(err)
@@ -69,69 +58,28 @@ func receiveEvent(dirPath string) {
 		if err != nil {
 			if sIsNewDir[0:4] != "fals" {
 				panic(err)
+			} else {
+				isNewDir = false
 			}
 		}
 
 		if isNewDir {
-			fileoperations.CreateDir(dirPath, eventName)
+			fileoperations.CreateDir(serverRoot, eventName)
 		}
-		if op == 4 {
-			fileoperations.Remove(dirPath, eventName)
+		if op == REMOVE {
+			fileoperations.Remove(serverRoot, eventName)
 		}
 	}
 }
 
-// main
 func main() {
-	//dirPath := os.Args[1]
-	dirPath := "/tmp/dropbox/server"
+	serverRoot := os.Args[1]
 
 	done := make(chan bool)
 
 	connectionEstablished := make(chan net.Conn)
 	go network2.EstablishFileConnection(connectionEstablished)
-	go receiveFile(connectionEstablished, dirPath)
-	go receiveEvent(dirPath)
-
-	// go func() {
-	// 	//connection <- connectionEstabllished
-	// 	for {
-	// 		select {
-	// 		case change := <-receive:
-	// 			fmt.Print("server event: ")
-	// 			fmt.Println(change)
-	// 			//filename := etc.ExtractFileName(change.Event.Name)
-	// 			//changeName := etc.ExtractChangeName(change.Event.Name, dirPath)
-	// 			fmt.Println(" ")
-	// 			switch change.Event.Op {
-
-	// 			case fsnotify.Create:
-	// 				//fmt.Println("create event")
-	// 				if change.IsDir {
-	// 					fileoperations.CreateDir(dirPath, change.Event.Name)
-	// 				} else {
-	// 					fileoperations.CreateFile(dirPath + "/" + change.Event.Name)
-	// 				}
-
-	// 			case fsnotify.Write:
-	// 				//fmt.Println("case: write")
-	// 				//fmt.Println(change.FileLines)
-	// 				fileoperations.WriteSliceToFile(dirPath, change.Event.Name, change.FileLines)
-
-	// 			case fsnotify.Remove:
-	// 				fileoperations.Remove(dirPath, change.Event.Name)
-
-	// 			case fsnotify.Rename:
-
-	// 			case fsnotify.Chmod:
-	// 				fmt.Println("Chmod")
-	// 			default:
-	// 				fmt.Println("default")
-	// 			}
-
-	// 		}
-	// 	}
-	// }()
-
+	go receiveFile(connectionEstablished, serverRoot)
+	go receiveEvent(serverRoot)
 	<-done
 }

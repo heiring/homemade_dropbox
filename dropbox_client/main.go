@@ -2,12 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"./fileoperations"
 	"./network2"
 	"github.com/fsnotify/fsnotify"
 )
@@ -42,9 +43,26 @@ func eventTransmission(dirEventTransmissionQueue <-chan dirEvent) {
 	}
 }
 
+func initialSync(rootPath string, scanPath string, dirEventTransmissionQueue chan<- dirEvent, fileTransmissionQueue chan<- fileInfo) {
+	files, err := ioutil.ReadDir(scanPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			drEvnt := fsnotify.Event{Name: strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], Op: fsnotify.Create}
+			dirEventTransmissionQueue <- dirEvent{Event: drEvnt, IsNewDir: true}
+			initialSync(rootPath, scanPath+"/"+file.Name(), dirEventTransmissionQueue, fileTransmissionQueue)
+		} else {
+			fileTransmissionQueue <- fileInfo{fileName: strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], filePath: rootPath}
+		}
+
+	}
+}
+
 func main() {
-	//arg := os.Args[1]
-	dirPath := "/tmp/dropbox/client"
+	clientRoot := os.Args[1]
 
 	fileTransmissionQueue := make(chan fileInfo, 10)
 	go fileTransmission(fileTransmissionQueue)
@@ -55,69 +73,57 @@ func main() {
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
 
-	if err := filepath.Walk(dirPath, watchDir); err != nil {
-		fmt.Println("ERROR", err)
+	if err := filepath.Walk(clientRoot, watchDir); err != nil {
+		panic(err)
 	}
 
-	done := make(chan bool)
+	initialSync(clientRoot, clientRoot, dirEventTransmissionQueue, fileTransmissionQueue)
 
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				fmt.Printf("client: EVENT! %#v\n", event)
-				fileName := fileoperations.ExtractFileName(event.Name)
+	for {
+		select {
+		case err := <-watcher.Errors:
+			panic(err)
 
-				switch event.Op {
+		case event := <-watcher.Events:
+			fmt.Printf("client: EVENT! %#v\n", event)
+			fileName := extractFileName(event.Name, clientRoot)
 
-				case fsnotify.Create:
+			switch event.Op {
 
-					fInfo, err := os.Stat(event.Name)
-					if err != nil {
-						log.Fatal(err)
-					}
+			case fsnotify.Write:
+				fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: clientRoot}
 
-					if fInfo.IsDir() {
-						watcher.Add(event.Name)
-						dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: true}
-					} else {
+			case fsnotify.Remove:
+				dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: false}
 
-						fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: dirPath}
-					}
+			case fsnotify.Create:
 
-					// } else {
-					// 	send <- fileSystemChange{Event: transmitEvent, FileLines: nil, IsDir: false}
-					// }
-					//network2.TransmitEvent(transmitEvent, isDir)
-
-				case fsnotify.Write:
-					//fmt.Println("case: write")
-					// fileLines := fileoperations.ReadFileLines(dirPath, filename)
-					// send <- fileSystemChange{Event: transmitEvent, FileLines: fileLines, IsDir: false}
-					//network2.TransmitFile(dirPath, fileName)
-					fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: dirPath}
-
-				case fsnotify.Remove:
-					dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: false}
+				fInfo, err := os.Stat(event.Name)
+				if err != nil {
+					log.Fatal(err)
 				}
 
-			case err := <-watcher.Errors:
-				fmt.Println("ERROR", err)
+				if fInfo.IsDir() {
+					watcher.Add(event.Name)
+					dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: true}
+				} else {
+					fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: clientRoot}
+				}
 			}
 		}
-	}()
-
-	<-done
+	}
 }
 
-// watchDir gets run as a walk func, searching for directories to add watchers to
 func watchDir(path string, fi os.FileInfo, err error) error {
-
-	// since fsnotify can watch all the files in a directory, watchers only need
-	// to be added to each nested directory
 	if fi.Mode().IsDir() {
 		return watcher.Add(path)
 	}
 
 	return nil
+}
+
+func extractFileName(filepath string, clientRoot string) string {
+	slc := strings.SplitAfter(filepath, clientRoot+"/")
+	filename := slc[len(slc)-1]
+	return filename
 }

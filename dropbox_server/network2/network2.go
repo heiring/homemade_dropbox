@@ -17,7 +17,6 @@ func CreateFileFromSocket(connection net.Conn, filepath string) {
 	// 	panic(err)
 	// }
 	defer connection.Close()
-	fmt.Println("Connected to server, start receiving the file name and file size")
 
 	bufferFileName := make([]byte, 64)
 	bufferFileSize := make([]byte, 10)
@@ -26,7 +25,7 @@ func CreateFileFromSocket(connection net.Conn, filepath string) {
 	fileSize, _ := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
 
 	connection.Read(bufferFileName)
-	fmt.Println("!!!!!!!!!!!!!!!!!" + string(bufferFileName))
+
 	fileName := strings.Trim(string(bufferFileName), ":")
 
 	newFile, err := os.Create(filepath + "/" + fileName)
@@ -54,9 +53,8 @@ func ReceiveEvent(connection net.Conn) (string, uint32, bool) {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	fmt.Println("ReceiveEvent")
+
 	defer connection.Close()
-	fmt.Println("Connected to server, start receiving the file name and file size")
 
 	bufferEventName := make([]byte, 64)
 	connection.Read(bufferEventName)
@@ -85,12 +83,7 @@ func EstablishFileConnection(connectionEstablished chan<- net.Conn) {
 		if err != nil {
 			//panic(err)
 		} else {
-			fmt.Print("connection local adress:")
-			fmt.Println(connection.LocalAddr())
-			fmt.Print("connection remote adress:")
-			fmt.Println(connection.RemoteAddr())
 			connectionEstablished <- connection
-			fmt.Println("after conn sent on channel")
 		}
 	}
 }
