@@ -1,7 +1,6 @@
 package network2
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -58,25 +57,13 @@ func sendFileToServer(connection net.Conn, filepath string, filename string) {
 	return
 }
 
-func TransmitFile(filepath string, filename string) {
-	server, err := net.Listen("tcp", "localhost:27001")
+func TransmitFile2(filepath string, filename string) {
+	connection, err := net.Dial("tcp", "localhost:"+FILE_PORT)
 	if err != nil {
-		fmt.Println("Error listetning: ", err)
-		os.Exit(1)
+		return
 	}
-	defer server.Close()
-
-	transmissionComplete := false
-	for !transmissionComplete {
-		connection, err := server.Accept()
-		if err != nil {
-			fmt.Println("Error: ", err)
-			os.Exit(1)
-		}
-
-		sendFileToServer(connection, filepath, filename)
-		transmissionComplete = true
-	}
+	defer connection.Close()
+	sendFileToServer(connection, filepath, filename)
 }
 
 func TransmitEvent(eventName string, op fsnotify.Op, isNewDir bool) {

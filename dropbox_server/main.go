@@ -16,16 +16,7 @@ const (
 	REMOVE     = 4
 )
 
-func receiveFile(connectionEstablished <-chan net.Conn, serverRoot string) {
-	for {
-		connection := <-connectionEstablished
-		if network2.ExtractRemotePort(connection) == FILE_PORT {
-			network2.CreateFileFromSocket(connection, serverRoot)
-		}
-	}
-}
-
-func receiveEvent(serverRoot string) {
+func listenForEvents(serverRoot string) {
 	server, err := net.Listen("tcp", "localhost:"+EVENT_PORT)
 	if err != nil {
 		panic(err)
@@ -77,9 +68,7 @@ func main() {
 
 	done := make(chan bool)
 
-	connectionEstablished := make(chan net.Conn)
-	go network2.EstablishFileConnection(connectionEstablished)
-	go receiveFile(connectionEstablished, serverRoot)
-	go receiveEvent(serverRoot)
+	go network2.ListenForFiles(serverRoot)
+	go listenForEvents(serverRoot)
 	<-done
 }

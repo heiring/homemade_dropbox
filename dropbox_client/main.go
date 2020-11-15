@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"./network2"
 	"github.com/fsnotify/fsnotify"
@@ -25,25 +24,7 @@ type fileInfo struct {
 
 var watcher *fsnotify.Watcher
 
-func fileTransmission(fileTransmissionQueue <-chan fileInfo) {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	for {
-		<-ticker.C
-		file := <-fileTransmissionQueue
-		network2.TransmitFile(file.filePath, file.fileName)
-	}
-}
-
-func eventTransmission(dirEventTransmissionQueue <-chan dirEvent) {
-	ticker := time.NewTicker(500 * time.Millisecond)
-	for {
-		<-ticker.C
-		dirEvent := <-dirEventTransmissionQueue
-		network2.TransmitEvent(dirEvent.Event.Name, dirEvent.Event.Op, dirEvent.IsNewDir)
-	}
-}
-
-func initialSync(rootPath string, scanPath string, dirEventTransmissionQueue chan<- dirEvent, fileTransmissionQueue chan<- fileInfo) {
+func initialSync(rootPath string, scanPath string) {
 	files, err := ioutil.ReadDir(scanPath)
 	if err != nil {
 		log.Fatal(err)
@@ -51,11 +32,10 @@ func initialSync(rootPath string, scanPath string, dirEventTransmissionQueue cha
 
 	for _, file := range files {
 		if file.IsDir() {
-			drEvnt := fsnotify.Event{Name: strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], Op: fsnotify.Create}
-			dirEventTransmissionQueue <- dirEvent{Event: drEvnt, IsNewDir: true}
-			initialSync(rootPath, scanPath+"/"+file.Name(), dirEventTransmissionQueue, fileTransmissionQueue)
+			network2.TransmitEvent(strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], fsnotify.Create, true)
+			initialSync(rootPath, scanPath+"/"+file.Name())
 		} else {
-			fileTransmissionQueue <- fileInfo{fileName: strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], filePath: rootPath}
+			network2.TransmitFile2(rootPath, strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1])
 		}
 
 	}
@@ -64,12 +44,6 @@ func initialSync(rootPath string, scanPath string, dirEventTransmissionQueue cha
 func main() {
 	clientRoot := os.Args[1]
 
-	fileTransmissionQueue := make(chan fileInfo, 10)
-	go fileTransmission(fileTransmissionQueue)
-
-	dirEventTransmissionQueue := make(chan dirEvent, 10)
-	go eventTransmission(dirEventTransmissionQueue)
-
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
 
@@ -77,7 +51,7 @@ func main() {
 		panic(err)
 	}
 
-	initialSync(clientRoot, clientRoot, dirEventTransmissionQueue, fileTransmissionQueue)
+	initialSync(clientRoot, clientRoot)
 
 	for {
 		select {
@@ -91,13 +65,12 @@ func main() {
 			switch event.Op {
 
 			case fsnotify.Write:
-				fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: clientRoot}
+				network2.TransmitFile2(clientRoot, fileName)
 
 			case fsnotify.Remove:
-				dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: false}
+				network2.TransmitEvent(fileName, event.Op, false)
 
 			case fsnotify.Create:
-
 				fInfo, err := os.Stat(event.Name)
 				if err != nil {
 					log.Fatal(err)
@@ -105,9 +78,9 @@ func main() {
 
 				if fInfo.IsDir() {
 					watcher.Add(event.Name)
-					dirEventTransmissionQueue <- dirEvent{Event: fsnotify.Event{Name: fileName, Op: event.Op}, IsNewDir: true}
+					network2.TransmitEvent(fileName, event.Op, true)
 				} else {
-					fileTransmissionQueue <- fileInfo{fileName: fileName, filePath: clientRoot}
+					network2.TransmitFile2(clientRoot, fileName)
 				}
 			}
 		}
