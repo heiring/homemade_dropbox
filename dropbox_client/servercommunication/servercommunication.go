@@ -1,4 +1,4 @@
-package network2
+package servercommunication
 
 import (
 	"io"
@@ -10,21 +10,20 @@ import (
 )
 
 const (
-	BUFFERSIZE = 1024
-	FILE_PORT  = "27001"
-	EVENT_PORT = "27002"
+	BUFFERSIZE = 32768
+	TCP_PORT   = "32001"
 )
 
-func fillString(retunString string, toLength int) string {
+func fillString(returnString string, toLength int) string {
 	for {
-		lengtString := len(retunString)
+		lengtString := len(returnString)
 		if lengtString < toLength {
-			retunString = retunString + ":"
+			returnString = returnString + ":"
 			continue
 		}
 		break
 	}
-	return retunString
+	return returnString
 }
 
 func sendFileToServer(connection net.Conn, filepath string, filename string) {
@@ -57,25 +56,35 @@ func sendFileToServer(connection net.Conn, filepath string, filename string) {
 	return
 }
 
-func TransmitFile2(filepath string, filename string) {
-	connection, err := net.Dial("tcp", "localhost:"+FILE_PORT)
+func TransmitFile(filepath string, filename string) {
+	connection, err := net.Dial("tcp", "localhost:"+TCP_PORT)
 	if err != nil {
 		return
 	}
 	defer connection.Close()
+
+	wPacketType := fillString("File", 10)
+	connection.Write([]byte(wPacketType))
+
 	sendFileToServer(connection, filepath, filename)
 }
 
 func TransmitEvent(eventName string, op fsnotify.Op, isNewDir bool) {
-	connection, err := net.Dial("tcp", "localhost:"+EVENT_PORT)
+	connection, err := net.Dial("tcp", "localhost:"+TCP_PORT)
 	if err != nil {
 		panic(err)
 	}
 	defer connection.Close()
 
-	sOp := strconv.FormatUint(uint64(op), 16)
+	wPacketType := fillString("Event", 10)
+	connection.Write([]byte(wPacketType))
 
-	sIsNewDir := strconv.FormatBool(isNewDir)
+	sOp := fillString(strconv.FormatUint(uint64(op), 16), 10)
+	connection.Write([]byte(sOp))
 
-	connection.Write([]byte(eventName + "-" + sOp + "-" + sIsNewDir))
+	sIsNewDir := fillString(strconv.FormatBool(isNewDir), 10)
+	connection.Write([]byte(sIsNewDir))
+
+	wEventName := fillString(eventName, 256)
+	connection.Write([]byte(wEventName))
 }

@@ -1,57 +1,57 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"./network2"
+	"./servercommunication"
 	"github.com/fsnotify/fsnotify"
 )
 
-type dirEvent struct {
-	Event    fsnotify.Event
-	IsNewDir bool
-}
-
-type fileInfo struct {
-	fileName string
-	filePath string
-}
-
-var watcher *fsnotify.Watcher
-
-func initialSync(rootPath string, scanPath string) {
-	files, err := ioutil.ReadDir(scanPath)
+func initialSync(clientPath string, dirReadPath string) {
+	files, err := ioutil.ReadDir(dirReadPath)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	for _, file := range files {
+		pathFromClientDir := strings.SplitAfter(dirReadPath+"/"+file.Name(), clientPath)[1]
+
 		if file.IsDir() {
-			network2.TransmitEvent(strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1], fsnotify.Create, true)
-			initialSync(rootPath, scanPath+"/"+file.Name())
+			servercommunication.TransmitEvent(pathFromClientDir, fsnotify.Create, true)
+			initialSync(clientPath, dirReadPath+"/"+file.Name())
+
 		} else {
-			network2.TransmitFile2(rootPath, strings.SplitAfter(scanPath+"/"+file.Name(), rootPath)[1])
+			servercommunication.TransmitFile(clientPath, pathFromClientDir)
 		}
 
 	}
 }
 
+func watchDir(path string, fi os.FileInfo, err error) error {
+	if fi.IsDir() {
+		return watcher.Add(path)
+	}
+
+	return nil
+}
+
+var watcher *fsnotify.Watcher
+
 func main() {
-	clientRoot := os.Args[1]
+	clientPath := os.Args[1]
 
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
 
-	if err := filepath.Walk(clientRoot, watchDir); err != nil {
+	err := filepath.Walk(clientPath, watchDir)
+	if err != nil {
 		panic(err)
 	}
 
-	initialSync(clientRoot, clientRoot)
+	initialSync(clientPath, clientPath)
 
 	for {
 		select {
@@ -59,44 +59,35 @@ func main() {
 			panic(err)
 
 		case event := <-watcher.Events:
-			fmt.Printf("client: EVENT! %#v\n", event)
-			fileName := extractFileName(event.Name, clientRoot)
+			fileName := extractFileName(event.Name, clientPath)
 
 			switch event.Op {
 
 			case fsnotify.Write:
-				network2.TransmitFile2(clientRoot, fileName)
+				servercommunication.TransmitFile(clientPath, fileName)
 
 			case fsnotify.Remove:
-				network2.TransmitEvent(fileName, event.Op, false)
+				servercommunication.TransmitEvent(fileName, event.Op, false)
 
 			case fsnotify.Create:
 				fInfo, err := os.Stat(event.Name)
 				if err != nil {
-					log.Fatal(err)
+					panic(err)
 				}
 
 				if fInfo.IsDir() {
 					watcher.Add(event.Name)
-					network2.TransmitEvent(fileName, event.Op, true)
+					servercommunication.TransmitEvent(fileName, event.Op, true)
 				} else {
-					network2.TransmitFile2(clientRoot, fileName)
+					servercommunication.TransmitFile(clientPath, fileName)
 				}
 			}
 		}
 	}
 }
 
-func watchDir(path string, fi os.FileInfo, err error) error {
-	if fi.Mode().IsDir() {
-		return watcher.Add(path)
-	}
-
-	return nil
-}
-
-func extractFileName(filepath string, clientRoot string) string {
-	slc := strings.SplitAfter(filepath, clientRoot+"/")
+func extractFileName(filepath string, clientPath string) string {
+	slc := strings.SplitAfter(filepath, clientPath+"/")
 	filename := slc[len(slc)-1]
 	return filename
 }

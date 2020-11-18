@@ -4,15 +4,14 @@ import (
 	"os"
 )
 
-func CreateDir(path string, dirName string) {
-	err := os.Mkdir(path+"/"+dirName, 0755)
+func CreateDir(dirPath string) {
+	err := os.Mkdir(dirPath, 0755)
 	if err != nil {
 		panic(err)
 	}
 }
-func Remove(dirPath string, filename string) {
-
-	err := os.Remove(dirPath + "/" + filename)
+func Remove(filePath string) {
+	err := os.Remove(filePath)
 	if err != nil {
 		return
 	}
