@@ -40,10 +40,6 @@ SHUTDOWN_TIMEOUT = 10.0
 SERVER_PATH = '/tmp/dropbox/server'
 CLIENT_PATH = '/tmp/dropbox/client'
 
-#SERVER_PATH = '/home/haavard/server'
-#CLIENT_PATH = '/home/haavard/client'
-
-
 
 
 def spit(filename, data):
