@@ -10,7 +10,7 @@ import (
 	"../fileoperations"
 )
 
-const BUFFERSIZE = 32768
+const BUFFERSIZE = 1400
 
 func ReceiveFile(connection net.Conn, serverPath string) {
 	bufferFileName := make([]byte, 64)
