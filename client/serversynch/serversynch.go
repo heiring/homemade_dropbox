@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	BUFFERSIZE = 32768
+	BUFFERSIZE = 1400
 	TCP_PORT   = "32001"
 )
 
@@ -26,9 +26,16 @@ func fillString(returnString string, toLength int) string {
 	return returnString
 }
 
-func sendFileToServer(connection net.Conn, filepath string, filename string) {
-
+func TransmitFile(filepath string, filename string) {
+	connection, err := net.Dial("tcp", "localhost:"+TCP_PORT)
+	if err != nil {
+		return
+	}
 	defer connection.Close()
+
+	wPacketType := fillString("File", 10)
+	connection.Write([]byte(wPacketType))
+
 	file, err := os.Open(filepath + "/" + filename)
 	if err != nil {
 		return
@@ -54,19 +61,6 @@ func sendFileToServer(connection net.Conn, filepath string, filename string) {
 	}
 
 	return
-}
-
-func TransmitFile(filepath string, filename string) {
-	connection, err := net.Dial("tcp", "localhost:"+TCP_PORT)
-	if err != nil {
-		return
-	}
-	defer connection.Close()
-
-	wPacketType := fillString("File", 10)
-	connection.Write([]byte(wPacketType))
-
-	sendFileToServer(connection, filepath, filename)
 }
 
 func NewDir(dirPath string) {
