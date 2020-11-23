@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"./serversynch"
+	"./serversync"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -30,7 +30,7 @@ func main() {
 		panic(err)
 	}
 
-	serversynch.InitialSynch(clientPath, clientPath)
+	serversync.InitialSynch(clientPath, clientPath)
 
 	for {
 		select {
@@ -43,10 +43,10 @@ func main() {
 			switch event.Op {
 
 			case fsnotify.Write:
-				serversynch.TransmitFile(clientPath, fileName)
+				serversync.TransmitFile(clientPath, fileName)
 
 			case fsnotify.Remove:
-				serversynch.Remove(fileName)
+				serversync.Remove(fileName)
 
 			case fsnotify.Create:
 				fInfo, err := os.Stat(event.Name)
@@ -56,9 +56,9 @@ func main() {
 
 				if fInfo.IsDir() {
 					watcher.Add(event.Name)
-					serversynch.NewDir(fileName)
+					serversync.NewDir(fileName)
 				} else {
-					serversynch.TransmitFile(clientPath, fileName)
+					serversync.TransmitFile(clientPath, fileName)
 				}
 			}
 		}

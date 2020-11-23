@@ -5,15 +5,15 @@ import (
 	"os"
 	"strings"
 
-	"./clientsynch"
+	"./clientsync"
 )
 
-const TCP_PORT = "32001"
+const SYNC_PORT = "32001"
 
 func main() {
 	serverPath := os.Args[1]
 
-	server, err := net.Listen("tcp", "localhost:"+TCP_PORT)
+	server, err := net.Listen("tcp", "localhost:"+SYNC_PORT)
 	if err != nil {
 		panic(err)
 	}
@@ -33,13 +33,13 @@ func main() {
 		switch packetType {
 
 		case "File":
-			clientsynch.ReceiveFile(connection, serverPath)
+			clientsync.ReceiveFile(connection, serverPath)
 
 		case "New Dir":
-			clientsynch.CreateDir(serverPath, connection)
+			clientsync.CreateDir(serverPath, connection)
 
 		case "Remove":
-			clientsynch.RemoveFile(serverPath, connection)
+			clientsync.RemoveFile(serverPath, connection)
 		}
 	}
 }
