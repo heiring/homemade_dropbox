@@ -17,7 +17,7 @@ func ReceiveFile(connection net.Conn, serverPath string) {
 	connection.Read(bufferFileSize)
 	fileSize, err := strconv.ParseInt(strings.Trim(string(bufferFileSize), ":"), 10, 64)
 	if err != nil {
-		return
+		panic(err)
 	}
 
 	connection.Read(bufferFileName)
