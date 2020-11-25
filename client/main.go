@@ -11,6 +11,7 @@ import (
 
 func watchDir(path string, fi os.FileInfo, err error) error {
 	if fi.IsDir() {
+		// watch for any file system changes in this directory
 		return watcher.Add(path)
 	}
 
@@ -25,6 +26,7 @@ func main() {
 	watcher, _ = fsnotify.NewWatcher()
 	defer watcher.Close()
 
+	// watch for any file system changes in the client directory and in possible subdirectories
 	err := filepath.Walk(clientPath, watchDir)
 	if err != nil {
 		panic(err)
@@ -55,7 +57,9 @@ func main() {
 				}
 
 				if fInfo.IsDir() {
+					// watch for any file system changes in the new directory
 					watcher.Add(event.Name)
+
 					serversync.NewDir(fileName)
 				} else {
 					serversync.TransmitFile(clientPath, fileName)
